@@ -1,0 +1,321 @@
+---
+title: "Project Doc"
+author: "Akul Suhail Malhotra and Sana Naz"
+date: "4/5/2020"
+output: html_document
+---
+
+```{r}
+install.packages("tidyverse")
+library(tidyverse)
+
+mortality_only <- read.csv("Mortality_codes_only.csv")
+final_dataset <- read.csv("FinalDataset_STAT627.csv")
+
+View(mortality_only); dim(mortality_only)
+View(final_dataset)
+
+# final_dataset_STAT627 <- left_join(final_dataset, mortality_only, by= c("N")) %>%
+#   select(GENDER.x,AGE.x,AREA.x,CAUSE,YEAR.x,NO,NO2,O3,PM10,SO2) %>%
+#   rename(MORTALITY_CAUSE = CAUSE, GENDER = GENDER.x, AGE = AGE.x, AREA = AREA.x, YEAR=YEAR.x)
+
+#mortality_codes <- mortality_only %>% select(N, GENDER, AGE, AREA, MORTALITY, YEAR, CAUSE)
+
+#mortality_codes_join <- mortality_codes%>%select(N, CAUSE)
+View(mortality_codes_join)
+
+View(final_dataset)
+
+joined_data<-full_join(mortality_codes_join, final_dataset, by = "N")
+View(joined_data)
+table(joined_data$CAUSE)
+dim(joined_data)
+joined_data<-joined_data %>% mutate(Cause_code = rep(CAUSE))
+View(joined_data)
+joined_data$Cause_code<-as.factor(joined_data$Cause_code)
+
+joined_data_final <- within(joined_data,cause_code_2 <- match(joined_data$CAUSE,unique(joined_data$CAUSE)))
+#joined_data_final<-joined_data_final%>%select(-Cause_code)
+
+joined_data_final<-joined_data_final%>%rename(Cause_code = cause_code_2)
+names(joined_data_final)
+
+#View(joined_data_final)
+```
+
+
+```{r}
+Mortality_full<-read.csv("FinalDataset_STAT627.csv", header = T)
+Mortality_full
+
+```
+
+Test for Auto Correlation using Multinomial logostic Regression
+
+```{r message=F}
+library(lmtest)
+library(VGAM)
+library(perturb)
+library(car)
+library(nnet)
+library(corrplot)
+library(MASS)
+attach(Mortality_full)
+library(glmnet)
+
+
+Mortality_full$AREA<-as.numeric(Mortality_full$AREA)
+Mortality_full$MORTALITY<-as.numeric(Mortality_full$MORTALITY)
+
+######AREA######
+
+
+#AUTOCORRELATION
+# Multinomial logistic regression
+# Below we use the multinom function from the nnet package to estimate a multinomial logistic regression model. There are other functions in other R packages capable of multinomial regression. We chose the multinom function because it does not require the data to be reshaped (as the mlogit package does) and to mirror the example code found in Hilbe’s Logistic Regression Models. https://stats.idre.ucla.edu/r/dae/multinomial-logistic-regression/
+
+model_area<-multinom(AREA ~ NO
+                     + NO2 + O3 + PM10+ SO2, data = Mortality_full)
+dwtest(model_area) #No Autocorrelation
+
+# Check Multicollinearity
+model_area2<-vglm(AREA ~ NO + NO2 + O3 + PM10+ SO2, data = Mortality_full, family = multinomial(refLevel = 1))
+#colldiag(mod = multinom(AREA ~ NO + NO2 + O3 + PM10+ SO2, model = TRUE), scale = FALSE, center = FALSE, add.intercept = TRUE)#High Multicollinearity
+vif(model_area) #No intercept: vifs may not be sensible. 
+
+#######MORTALITY##########
+
+
+
+#Autocorrelation
+model_mortality<-multinom(Cause_code ~ NO + NO2 + O3 + PM10+ SO2, data = joined_data_final)
+# summary(model_mortality)
+dwtest(model_mortality)#No Autocorrelation
+
+#Multicollinearity
+colldiag(mod = multinom(Cause_code ~ NO + NO2 + O3 + PM10+ SO2, data = joined_data_final), scale = T, 
+         center = T, add.intercept = TRUE) #Very High Multicollinearity
+
+vif(model_mortality)
+#Note:VIF is unstable
+
+```
+
+
+
+
+```{r Correlation}
+correlation<-cor(Mortality_full[,7:11])
+joined_data_final$Cause_code<-as.numeric(joined_data_final$Cause_code)
+correlation_full<-cor(joined_data_final[,3:13])
+
+corrplot(correlation_full, method = "number")
+
+
+```
+
+
+```{r data transformation}
+# install.packages("tidyverse")
+library(tidyverse)
+
+# mortality_only <- read.csv("Mortality_codes_only.csv")
+# final_dataset <- read.csv("FinalDataset_STAT627.csv")
+# 
+# # View(mortality_only); dim(mortality_only)
+# # View(final_dataset)
+# 
+# # final_dataset_STAT627 <- full_join(final_dataset, mortality_only, by= c("N")) %>%
+# #   select(GENDER.x,AGE.x,AREA.x,CAUSE,YEAR.x,NO,NO2,O3,PM10,SO2) %>%
+# #   rename(MORTALITY_CAUSE = CAUSE, GENDER = GENDER.x, AGE = AGE.x, AREA = AREA.x, YEAR=YEAR.x)
+# # attach(mortality_only)
+# mortality_codes <- mortality_only %>% select(N, GENDER, AGE, AREA, MORTALITY,CAUSE)
+# 
+# mortality_codes_join <- mortality_codes%>% select (N,CAUSE)
+# # View(mortality_codes_join)
+# 
+# # View(final_dataset)
+# 
+# joined_data<-full_join(mortality_codes_join, final_dataset, by = "N")
+write.csv(joined_data, "joined_data.csv")
+#View(joined_data)
+table(joined_data$CAUSE)
+dim(joined_data)
+# joined_data<-joined_data %>% mutate(Cause_code = rep(CAUSE))
+# View(joined_data)
+# joined_data$Cause_code<-as.factor(joined_data$Cause_code)
+# 
+# joined_data_final <- within(joined_data,cause_code_2 <- match(joined_data$CAUSE,unique(joined_data$CAUSE)))
+# joined_data_final<-joined_data_final%>%select(-Cause_code)
+# 
+# joined_data_final<-joined_data_final%>%rename(Cause_code = cause_code_2)
+# names(joined_data_final)
+# 
+# View(joined_data_final)
+# joined_data_final$Cause_code<-as.factor(joined_data_final$Cause_code)
+```
+
+
+```{r train_test_split}
+attach(joined_data);dim(joined_data)
+joined_data <- joined_data %>% select(-MORTALITY) 
+#View(joined_data)
+set.seed(1)
+trainingindex <- sample(nrow(joined_data), 0.8 * nrow(joined_data))
+train<- joined_data[trainingindex,]
+test<- joined_data[-trainingindex,]
+dim(joined_data)
+
+xtrain=model.matrix(Cause_code ~., data = train)[,-1]
+ytrain=as.factor(train$Cause_code)
+xtest=model.matrix(Cause_code~., data = test)[,-1]
+ytest=test$Cause_code
+set.seed(1)
+
+# lasso=glmnet(xtrain, ytrain, type.measure="class",alpha=1,family="multinomial")
+# print(lasso)
+# 
+# cv_lasso <- cv.glmnet(xtest, ytest)
+# cv_lasso
+# 
+# 
+# X = model.matrix(CAUSE~.-YEAR - MORTALITY  - N , data = joined_data)
+# Y =joined_data$CAUSE
+# ridge_reg <- glmnet(X,Y, alpha = 0, family = "multinomial", type.measure = "class")
+# plot(ridge_reg)
+# print(ridge_reg)
+# # coef(ridge_reg)
+# 
+# #Cross Validation
+# cv_ridge <- cv.glmnet(X,Y,alpha = 0, family = "multinomial", type.measure = "class" )
+# names(cv_ridge)
+# plot(cv_ridge)
+# cv_ridge$lambda.min
+# 
+# coef(cv_ridge, s = "lambda.min")
+# predict(cv_ridge, newx = xtest, s = "lambda.min")
+
+
+
+
+
+
+
+
+```
+
+
+#LASSO
+
+```{r lasso}
+#####GROUPED###3
+m.lasso.grouped <- cv.glmnet(x = as.matrix(xtrain) ,y = ytrain, family = c("multinomial"), type.multinomial = "grouped", alpha = 1)
+plot(m.lasso.grouped)
+min_lasso_grouped <- m.lasso.grouped$lambda.min; min_lasso_grouped
+lse_lasso_grouped<-m.lasso.grouped$lambda.1se; lse_lasso_grouped
+#The minimum lambda was 0.02292339. And with one standard deviation its  0.0768301.
+
+#Next, use both min lambda and lse to generate predictions on the test set
+pmin <- predict(m.lasso.grouped,newx = as.matrix(xtest), s=min_lasso_grouped, type = "class")
+psd <- predict(m.lasso.grouped, newx = as.matrix(xtest), s=lse_lasso_grouped, type = "class")
+
+#misclassification error rate:
+mean(pmin != ytest)
+mean(psd != ytest)
+#The error rates for the minimum lamda were 9.86% 
+
+m.lasso.grouped$nzero[which(m.lasso.grouped$lambda == m.lasso.grouped$lambda.1se)]
+#The number of non-zero coeficients for lambda with 1 standard deviation is 2. With one standard deviation the number of predictors is also 4.
+```
+
+
+```{r ridge}
+###RIDGE
+m.ridge <- cv.glmnet(x = as.matrix(xtrain) ,y = ytrain, family = c("multinomial"), alpha = 0)
+plot(m.ridge)
+
+#min lambda
+lmin_ridge <- m.ridge$lambda.min
+lmin_ridge
+
+#min lambda wd 1 sd
+lse_ridge <- m.ridge$lambda.1se
+lse_ridge
+
+pmin_ridge <- predict(m.ridge, newx = as.matrix(xtest), s =lmin_ridge, type="class")
+psd_ridge <- predict(m.ridge, newx = as.matrix(xtest), s =lse_ridge, type="class")
+mean(pmin_ridge != ytest)
+mean(psd_ridge != ytest)
+
+# For ungrouped the minimum lambda was: .02068759. And lambda with 1 standard deviation is  0.3700284: .
+# The misclassification for minimum lambda inn both cases is: 15.46%.
+```
+
+
+
+```{r lda}
+joined_data
+library(MASS)
+library(caret)
+joined_data
+predfun.lda = function(xtrain, ytrain, xtest, ytest)
+{
+  require("MASS")
+  lda.fit = lda(xtrain, grouping=ytrain)
+  ynew = predict(lda.fit, xtest)$class
+  out.lda = confusionMatrix(ytest, ynew)
+  return( out.lda )
+}
+predfun.lda(xtrain, ytrain, xtest, ytest)
+```
+
+
+```{r qda}
+library(leaps)
+library(MASS)
+attach(joined_data)
+#model_qda<-qda(Cause_code~GENDER+AGE+AREA+NO+NO2+SO2+PM10+O3, data = joined_data)
+#model_qda
+# This error message: “Error in qda.default(x, grouping, …) : rank deficiency in group 1” indicates that there is a rank deficiency, i.e. some variables are collinear and one or more covariance matrices cannot be inverted to obtain the estimates in group 1 (Controls)!
+
+
+regfit.full <- regsubsets(Cause_code~., joined_data)
+reg.summary<-summary(regfit.full)
+plot(reg.summary$adjr2, type = "l")
+plot(reg.summary$rss, type = "l")
+
+
+#joined_data_qda = joined_data %>% select (Cause_code, GENDER, AGE, NO)
+trainingindex_qda <- sample(nrow(joined_data_qda), 0.8 * nrow(joined_data_qda))
+train_qda<- joined_data_qda[trainingindex_qda,]
+test_qda<- joined_data_qda[-trainingindex_qda,]
+dim(joined_data_qda)
+
+xtrain_qda=model.matrix(Cause_code ~., data = train)[,-1]
+ytrain_qda=as.factor(train$Cause_code)
+xtest_qda=model.matrix(Cause_code~., data = test)[,-1]
+ytest_qda=test_qda$Cause_code
+set.seed(1)
+
+model_qda_cv <- qda(Cause_code~GENDER+AGE+NO,data = joined_data_qda)
+
+
+
+
+predfun.qda = function(x.train, y.train, x.test, y.test)
+{
+  require("MASS") # for qda function
+  qda.fit = qda(xtrain_qda, grouping=ytrain_qda)
+  ynew = predict(qda.fit, xtest_qda)$count
+  out.qda = confusionMatrix(ytest_qda, ynew)
+  return(out.qda)
+}
+#predfun.qda(xtrain_qda, ytrain_qda, xtest_qda, ytest_qda)
+
+
+
+# This error message: “Error in qda.default(x, grouping, …) : rank deficiency in group Liver” indicates that there is a rank deficiency, i.e. some variables are collinear and one or more covariance matrices cannot be inverted to obtain the estimates in group 1 (Controls)!
+# The deficiency may stem from simply too little data. In general, you cannot uniquely estimate n parameters with less than n data points. That does not mean that all you need are n points, as if there is any noise in the process, you would get rather poor results. You need more data to help the algorithm to choose a solution that will represent all of the data, in a minimum error sense.
+```
+
+
